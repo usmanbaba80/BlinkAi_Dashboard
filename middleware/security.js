@@ -24,7 +24,8 @@ export const configureCors = () => {
 };
 
 // Configure Helmet for security headers
-export const configureHelmet = () => {
+// When the origin is not trustworthy (HTTP), we skip COOP/OAC/HSTS to avoid browser warnings.
+export const configureHelmet = ({ isSecureOrigin = false } = {}) => {
   return helmet({
     contentSecurityPolicy: {
       directives: {
@@ -39,11 +40,15 @@ export const configureHelmet = () => {
         upgradeInsecureRequests: []
       }
     },
-    hsts: {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true
-    },
+    crossOriginOpenerPolicy: isSecureOrigin ? { policy: 'same-origin' } : false,
+    originAgentCluster: isSecureOrigin,
+    hsts: isSecureOrigin
+      ? {
+          maxAge: 31536000,
+          includeSubDomains: true,
+          preload: true
+        }
+      : false,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     noSniff: true,
     xssFilter: true,

@@ -7,6 +7,19 @@ const envSchema = Joi.object({
     .valid('development', 'production', 'test')
     .default('development'),
   PORT: Joi.number().port().default(3000),
+  HTTPS_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
+  FORCE_HTTPS_REDIRECT: Joi.boolean().truthy('true').falsy('false').default(true),
+  SSL_KEY_PATH: Joi.when('HTTPS_ENABLED', {
+    is: true,
+    then: Joi.string().required(),
+    otherwise: Joi.string().optional()
+  }),
+  SSL_CERT_PATH: Joi.when('HTTPS_ENABLED', {
+    is: true,
+    then: Joi.string().required(),
+    otherwise: Joi.string().optional()
+  }),
+  SSL_CA_PATH: Joi.string().optional(),
   
   // Database
   DB_HOST: Joi.string().required(),

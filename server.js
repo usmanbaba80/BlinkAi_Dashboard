@@ -8,6 +8,9 @@ import morgan from 'morgan';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import cookieParser from 'cookie-parser';
+import { createServer as createHttpServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
+import { readFileSync } from 'fs';
 import { sequelize, testConnection, closeConnection } from './database.js';
 import SearchQuery from './models/QueryResult.js';
 import { fileURLToPath } from 'url';
@@ -33,6 +36,12 @@ try {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const httpsEnabled = env.HTTPS_ENABLED;
+const forceHttpsRedirect = env.FORCE_HTTPS_REDIRECT;
+const sslKeyPath = env.SSL_KEY_PATH;
+const sslCertPath = env.SSL_CERT_PATH;
+const sslCaPath = env.SSL_CA_PATH;
+
 // Register Sequelize adapter for AdminJS
 AdminJS.registerAdapter({
   Resource: Resource,
@@ -44,12 +53,45 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 const start = async () => {
   const app = express();
+  const enforceHttps = Boolean(forceHttpsRedirect && httpsEnabled);
+  let sslOptions;
+
+  if (httpsEnabled) {
+    try {
+      sslOptions = {
+        key: readFileSync(sslKeyPath),
+        cert: readFileSync(sslCertPath)
+      };
+
+      if (sslCaPath) {
+        sslOptions.ca = readFileSync(sslCaPath);
+      }
+    } catch (error) {
+      logger.error('Failed to load SSL certificate files:', error);
+      process.exit(1);
+    }
+  }
 
   // Trust proxy for rate limiting and secure cookies behind reverse proxy
   app.set('trust proxy', 1);
 
+  if (enforceHttps) {
+    app.use((req, res, next) => {
+      const proto = req.headers['x-forwarded-proto'] || (req.connection?.encrypted ? 'https' : req.protocol);
+      if (proto === 'https') {
+        return next();
+      }
+
+      if (!req.headers.host) {
+        return res.status(400).send('Host header is required');
+      }
+
+      return res.redirect(`https://${req.headers.host}${req.originalUrl}`);
+    });
+  }
+
   // Security middleware
-  app.use(configureHelmet());
+  app.use(configureHelmet({ isSecureOrigin: httpsEnabled }));
   app.use(configureCors());
 
   // Request logging
@@ -171,7 +213,7 @@ const start = async () => {
 
       const recentQueries = recentRecords.map(r => ({
         id: r.id,
-        query: r.query,
+        keyword: r.keyword,
         search_type: r.search_type,
         created_at: r.created_at
       }));
@@ -377,7 +419,7 @@ const start = async () => {
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Query</th>
+                            <th>Keyword</th>
                             <th>Search Type</th>
                             <th>Created At</th>
                         </tr>
@@ -545,7 +587,7 @@ const start = async () => {
                     const row = tbody.insertRow();
                     row.innerHTML = \`
                         <td>\${item.id}</td>
-                        <td>\${item.query || 'N/A'}</td>
+                        <td>\${item.keyword || 'N/A'}</td>
                         <td><span class="badge">\${item.search_type || 'N/A'}</span></td>
                         <td>\${new Date(item.created_at).toLocaleString()}</td>
                     \`;
@@ -742,7 +784,7 @@ const start = async () => {
               isVisible: { list: true, filter: true, show: true, edit: false },
               position: 1
             },
-            query: {
+            keyword: {
               type: 'textarea',
               isVisible: { list: true, filter: true, show: true, edit: true },
               position: 2
@@ -756,10 +798,10 @@ const start = async () => {
               position: 4
             }
           },
-          listProperties: ['id', 'query', 'search_type', 'created_at'],
-          filterProperties: ['id', 'query', 'search_type', 'created_at'],
-          showProperties: ['id', 'query', 'search_type', 'created_at'],
-          editProperties: ['query', 'search_type'],
+          listProperties: ['id', 'keyword', 'search_type', 'created_at'],
+          filterProperties: ['id', 'keyword', 'search_type', 'created_at'],
+          showProperties: ['id', 'keyword', 'search_type', 'created_at'],
+          editProperties: ['keyword', 'search_type'],
           sort: {
             sortBy: 'created_at',
             direction: 'desc',
@@ -826,7 +868,12 @@ const start = async () => {
   app.use(errorHandler);
 
   // Start server
-  const server = app.listen(PORT, () => {
+  const protocol = httpsEnabled ? 'https' : 'http';
+  const serverFactory = httpsEnabled
+    ? () => createHttpsServer(sslOptions, app)
+    : () => createHttpServer(app);
+
+  const server = serverFactory().listen(PORT, () => {
     logger.info(`
 ╔════════════════════════════════════════════════════════════════╗
 ║                                                                ║
@@ -835,13 +882,17 @@ const start = async () => {
 ║   Environment: ${process.env.NODE_ENV || 'development'}                                      ║
 ║   Port: ${PORT}                                                    ║
 ║                                                                ║
-║   📊 Dashboard:    http://localhost:${PORT}/dashboard              ║
-║   🔐 Admin Panel:  http://localhost:${PORT}${admin.options.rootPath}                    ║
-║   💚 Health Check: http://localhost:${PORT}/health                 ║
-║   📡 API Stats:    http://localhost:${PORT}/api/stats              ║
+║   📊 Dashboard:    ${protocol}://localhost:${PORT}/dashboard              ║
+║   🔐 Admin Panel:  ${protocol}://localhost:${PORT}${admin.options.rootPath}                    ║
+║   💚 Health Check: ${protocol}://localhost:${PORT}/health                 ║
+║   📡 API Stats:    ${protocol}://localhost:${PORT}/api/stats              ║
 ║                                                                ║
 ╚════════════════════════════════════════════════════════════════╝
     `);
+
+    if (!httpsEnabled) {
+      logger.warn('HTTPS is disabled. COOP/OAC headers are off and browsers will treat the origin as untrusted. Set HTTPS_ENABLED=true with SSL_KEY_PATH and SSL_CERT_PATH to enable HTTPS.');
+    }
   });
 
   // Graceful shutdown handlers
