@@ -187,7 +187,11 @@ const start = async () => {
           'platform_name',
           [sequelize.fn('COUNT', sequelize.col('id')), 'count']
         ],
-        where: { platform_name: { [Op.ne]: null } },
+        where: {
+          platform_name: {
+            [Op.notIn]: [null, '', 'null', '[null]']
+          }
+        },
         group: ['platform_name'],
         raw: true
       });
@@ -282,9 +286,15 @@ const start = async () => {
             border-radius: 15px;
             margin-bottom: 30px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
         }
-        h1 { color: #333; margin-bottom: 10px; font-size: 32px; }
-        .subtitle { color: #666; font-size: 16px; }
+        .header-text { display: flex; flex-direction: column; gap: 8px; }
+        h1 { color: #333; margin: 0; font-size: 32px; }
+        .subtitle { color: #666; font-size: 16px; margin: 0; }
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -377,28 +387,29 @@ const start = async () => {
         }
         .admin-link {
             display: inline-block;
-            background: white;
-            color: #667eea;
-            padding: 12px 24px;
-            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 32px;
+            border-radius: 12px;
             text-decoration: none;
-            font-weight: 600;
-            margin-top: 20px;
-            transition: all 0.3s ease;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.35);
+            transition: all 0.25s ease;
         }
         .admin-link:hover {
-            background: #667eea;
-            color: white;
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            box-shadow: 0 14px 36px rgba(102, 126, 234, 0.45);
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Blink_Ai Dashboard</h1>
-            <p class="subtitle">Real-time analytics and insights from your search queries</p>
+            <div class="header-text">
+                <h1>📊 Blink_Ai Dashboard</h1>
+                <p class="subtitle">Real-time analytics and insights from your search queries</p>
+            </div>
             <a href="/admin" class="admin-link">Go to Admin Panel →</a>
         </div>
         
@@ -805,26 +816,7 @@ const start = async () => {
     assets: {
       scripts: ['/admin-assets/dashboard-button.js'],
     },
-    pages: {
-      dashboardCharts: {
-        label: '📊 View Analytics Dashboard',
-        icon: 'ChartLine',
-        handler: async (request, response, context) => {
-          return {
-            text: `
-              <div style="padding: 40px; text-align: center;">
-                <h1 style="font-size: 32px; margin-bottom: 20px;">📊 Interactive Analytics Dashboard</h1>
-                <p style="font-size: 18px; color: #666; margin-bottom: 40px;">Click the button below to view your comprehensive analytics dashboard with interactive charts</p>
-                <a href="/dashboard" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 48px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 18px; box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);">
-                  🚀 Open Dashboard with Charts
-                </a>
-                <p style="margin-top: 40px; color: #999; font-size: 14px;">The dashboard will open in a new tab</p>
-              </div>
-            `,
-          };
-        },
-      },
-    },
+    pages: {},
     resources: [
       {
         resource: SearchQuery,
