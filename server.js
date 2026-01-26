@@ -11,6 +11,7 @@ import cookieParser from 'cookie-parser';
 import { createServer as createHttpServer } from 'http';
 import { createServer as createHttpsServer } from 'https';
 import { readFileSync } from 'fs';
+import { Op } from 'sequelize';
 import { sequelize, testConnection, closeConnection } from './database.js';
 import SearchQuery from './models/QueryResult.js';
 import { fileURLToPath } from 'url';
@@ -155,6 +156,9 @@ const start = async () => {
   // Apply rate limiting to API routes
   app.use('/api', apiLimiter);
 
+  // Favicon placeholder to avoid 404 noise
+  app.get('/favicon.ico', (req, res) => res.status(204).end());
+
   // API endpoint for dashboard statistics (requires authentication)
   app.get('/api/stats', requireAuth, asyncHandler(async (req, res) => {
       // Get total count (optimized query)
@@ -175,6 +179,23 @@ const start = async () => {
       searchTypeResults.forEach(row => {
         const type = row.search_type || 'Unknown';
         searchTypeBreakdown[type] = parseInt(row.count);
+      });
+
+      // Count by platform name (ignore null)
+      const platformResults = await SearchQuery.findAll({
+        attributes: [
+          'platform_name',
+          [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+        ],
+        where: { platform_name: { [Op.ne]: null } },
+        group: ['platform_name'],
+        raw: true
+      });
+
+      const platformBreakdown = {};
+      platformResults.forEach(row => {
+        const platform = row.platform_name || 'Unknown';
+        platformBreakdown[platform] = parseInt(row.count);
       });
 
       // Group queries by date for timeline chart
@@ -215,6 +236,7 @@ const start = async () => {
         id: r.id,
         keyword: r.keyword,
         search_type: r.search_type,
+        platform_name: r.platform_name,
         created_at: r.created_at
       }));
 
@@ -224,6 +246,7 @@ const start = async () => {
           total,
           searchTypeBreakdown,
           timelineData,
+          platformBreakdown,
           recentQueries,
           dateRange: {
             earliest,
@@ -409,6 +432,11 @@ const start = async () => {
             </div>
 
             <div class="chart-card" style="margin-bottom: 30px;">
+                <div class="chart-title">Platforms</div>
+                <canvas id="platformChart" style="max-height: 400px;"></canvas>
+            </div>
+
+            <div class="chart-card" style="margin-bottom: 30px;">
                 <div class="chart-title">Search Type Distribution</div>
                 <canvas id="pieChart" style="max-height: 400px;"></canvas>
             </div>
@@ -420,6 +448,7 @@ const start = async () => {
                         <tr>
                             <th>ID</th>
                             <th>Keyword</th>
+                            <th>Platform</th>
                             <th>Search Type</th>
                             <th>Created At</th>
                         </tr>
@@ -560,6 +589,30 @@ const start = async () => {
                     'rgba(255, 231, 76, 0.8)',
                     'rgba(130, 255, 173, 0.8)'
                 ];
+                // Platform Chart (ignore nulls)
+                const platformLabels = Object.keys(data.platformBreakdown || {});
+                const platformValues = Object.values(data.platformBreakdown || {});
+                if (platformLabels.length) {
+                    new Chart(document.getElementById('platformChart'), {
+                        type: 'bar',
+                        data: {
+                            labels: platformLabels,
+                            datasets: [{
+                                label: 'Queries by Platform',
+                                data: platformValues,
+                                backgroundColor: colors.slice(0, platformLabels.length),
+                                borderColor: 'rgba(102, 126, 234, 1)',
+                                borderWidth: 2,
+                                borderRadius: 8
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true } }
+                        }
+                    });
+                }
                 new Chart(document.getElementById('pieChart'), {
                     type: 'doughnut',
                     data: {
@@ -588,6 +641,7 @@ const start = async () => {
                     row.innerHTML = \`
                         <td>\${item.id}</td>
                         <td>\${item.keyword || 'N/A'}</td>
+                        <td>\${item.platform_name || 'N/A'}</td>
                         <td><span class="badge">\${item.search_type || 'N/A'}</span></td>
                         <td>\${new Date(item.created_at).toLocaleString()}</td>
                     \`;
@@ -789,19 +843,23 @@ const start = async () => {
               isVisible: { list: true, filter: true, show: true, edit: true },
               position: 2
             },
-            search_type: {
+            platform_name: {
               isVisible: { list: true, filter: true, show: true, edit: true },
               position: 3
             },
+            search_type: {
+              isVisible: { list: true, filter: true, show: true, edit: true },
+              position: 4
+            },
             created_at: {
               isVisible: { list: true, filter: true, show: true, edit: false },
-              position: 4
+              position: 5
             }
           },
-          listProperties: ['id', 'keyword', 'search_type', 'created_at'],
-          filterProperties: ['id', 'keyword', 'search_type', 'created_at'],
-          showProperties: ['id', 'keyword', 'search_type', 'created_at'],
-          editProperties: ['keyword', 'search_type'],
+          listProperties: ['id', 'keyword', 'platform_name', 'search_type', 'created_at'],
+          filterProperties: ['id', 'keyword', 'platform_name', 'search_type', 'created_at'],
+          showProperties: ['id', 'keyword', 'platform_name', 'search_type', 'created_at'],
+          editProperties: ['keyword', 'platform_name', 'search_type'],
           sort: {
             sortBy: 'created_at',
             direction: 'desc',

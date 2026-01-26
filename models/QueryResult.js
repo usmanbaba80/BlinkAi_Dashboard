@@ -10,6 +10,12 @@ const SearchQuery = sequelize.define('SearchQuery', {
     allowNull: false,
     field: 'id'
   },
+  platform_name: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Platform name',
+    field: 'platform_name'
+  },
   keyword: {
     type: DataTypes.TEXT,
     allowNull: true,

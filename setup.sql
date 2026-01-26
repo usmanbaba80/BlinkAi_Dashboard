@@ -5,6 +5,7 @@
 CREATE TABLE IF NOT EXISTS search_queries (
   id SERIAL PRIMARY KEY,
   keyword TEXT,
+  platform_name TEXT,
   search_type TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
@@ -30,16 +31,17 @@ CREATE TRIGGER update_search_queries_created_at
     EXECUTE FUNCTION update_created_at_column();
 
 -- Insert some sample data (optional)
-INSERT INTO search_queries (keyword, search_type, created_at) VALUES
-  ('software engineer', 'job', NOW()),
-  ('data scientist', 'job', NOW()),
-  ('web developer', 'job', NOW()),
-  ('product manager', 'job', NOW()),
-  ('UX designer', 'job', NOW());
+INSERT INTO search_queries (keyword, platform_name, search_type, created_at) VALUES
+  ('software engineer', 'web', 'job', NOW()),
+  ('data scientist', 'mobile', 'job', NOW()),
+  ('web developer', 'web', 'job', NOW()),
+  ('product manager', 'web', 'job', NOW()),
+  ('UX designer', 'mobile', 'job', NOW());
 
 COMMENT ON TABLE search_queries IS 'Stores search queries and metadata';
 COMMENT ON COLUMN search_queries.id IS 'Primary key identifier';
 COMMENT ON COLUMN search_queries.keyword IS 'The search keyword';
+COMMENT ON COLUMN search_queries.platform_name IS 'Platform name';
 COMMENT ON COLUMN search_queries.search_type IS 'Type of search performed';
 COMMENT ON COLUMN search_queries.created_at IS 'When the query was created';
 
