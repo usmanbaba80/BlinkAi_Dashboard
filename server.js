@@ -184,15 +184,16 @@ const start = async () => {
       // Count by platform name (ignore null)
       const platformResults = await SearchQuery.findAll({
         attributes: [
-          'platform_name',
+          [sequelize.fn('TRIM', sequelize.col('platform_name')), 'platform_name'],
           [sequelize.fn('COUNT', sequelize.col('id')), 'count']
         ],
-        where: {
-          platform_name: {
-            [Op.notIn]: [null, '', 'null', '[null]']
+        where: sequelize.where(
+          sequelize.fn('NULLIF', sequelize.fn('TRIM', sequelize.col('platform_name')), ''),
+          {
+            [Op.notIn]: ['null', '[null]']
           }
-        },
-        group: ['platform_name'],
+        ),
+        group: [sequelize.fn('TRIM', sequelize.col('platform_name'))],
         raw: true
       });
 
