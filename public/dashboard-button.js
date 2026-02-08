@@ -11,8 +11,8 @@
     btnWrapper.id = 'analytics-dashboard-button';
     btnWrapper.style.position = 'fixed';
     btnWrapper.style.bottom = '30px';
-  btnWrapper.style.left = '30px';
-    btnWrapper.style.zIndex = '9999';
+    btnWrapper.style.right = '30px';
+    btnWrapper.style.zIndex = '999';
 
     btnWrapper.innerHTML = `
       <a href="/dashboard" style="
