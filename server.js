@@ -244,10 +244,10 @@ const SystemPrompt = sequelize.define('SystemPrompt', {
 }, { tableName: 'system_prompt', timestamps: false, underscored: true });
 
 const TrendsNow = sequelize.define('TrendsNow', {
-  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, field: 'id' },
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false, field: 'id' },
   trends_data: { type: DataTypes.JSONB, allowNull: false, field: 'trends_data' },
   location: { type: DataTypes.STRING(255), allowNull: false, field: 'location' },
-  timestamp: { type: DataTypes.DATE, allowNull: true, defaultValue: DataTypes.NOW, field: 'timestamp' }
+  created_at: { type: DataTypes.DATE, allowNull: true, defaultValue: DataTypes.NOW, field: 'created_at' }
 }, { tableName: 'trends_now', timestamps: false, underscored: true });
 
 const Users = sequelize.define('Users', {
