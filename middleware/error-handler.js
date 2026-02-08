@@ -12,10 +12,23 @@ export const errorHandler = (err, req, res, next) => {
   const statusCode = err.status || err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
 
+  // Sequelize/Postgres error details (when present)
+  const dbError = err?.original || err?.parent;
+
   // Log error details
   logger.error({
+    name: err?.name,
     message: err.message,
     stack: err.stack,
+    ...(dbError
+      ? {
+          dbMessage: dbError?.message,
+          dbCode: dbError?.code,
+          dbDetail: dbError?.detail,
+          dbHint: dbError?.hint,
+          sql: err?.sql
+        }
+      : {}),
     url: req.originalUrl,
     method: req.method,
     ip: req.ip,
@@ -29,7 +42,20 @@ export const errorHandler = (err, req, res, next) => {
     error: {
       message: isProduction && statusCode === 500 ? 'Internal Server Error' : message,
       status: statusCode,
-      ...(isProduction ? {} : { stack: err.stack, details: err.details })
+      ...(isProduction
+        ? {}
+        : {
+            stack: err.stack,
+            details: err.details,
+            ...(dbError
+              ? {
+                  dbMessage: dbError?.message,
+                  dbCode: dbError?.code,
+                  dbDetail: dbError?.detail,
+                  dbHint: dbError?.hint
+                }
+              : {})
+          })
     }
   });
 };

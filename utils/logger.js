@@ -16,7 +16,16 @@ const { combine, timestamp, printf, colorize, errors } = winston.format;
 
 // Custom log format
 const logFormat = printf(({ level, message, timestamp, stack }) => {
-  return `${timestamp} [${level}]: ${stack || message}`;
+  let renderedMessage = message;
+  if (typeof renderedMessage !== 'string') {
+    try {
+      renderedMessage = JSON.stringify(renderedMessage);
+    } catch {
+      renderedMessage = String(renderedMessage);
+    }
+  }
+
+  return `${timestamp} [${level}]: ${stack || renderedMessage}`;
 });
 
 // Create logger instance

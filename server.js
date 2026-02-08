@@ -11,7 +11,7 @@ import cookieParser from 'cookie-parser';
 import { createServer as createHttpServer } from 'http';
 import { createServer as createHttpsServer } from 'https';
 import { readFileSync } from 'fs';
-import { Op } from 'sequelize';
+import { Op, DataTypes } from 'sequelize';
 import { sequelize, testConnection, closeConnection } from './database.js';
 import SearchQuery from './models/QueryResult.js';
 import { fileURLToPath } from 'url';
@@ -22,6 +22,7 @@ import { configureCors, configureHelmet, apiLimiter } from './middleware/securit
 import { errorHandler, notFoundHandler, asyncHandler } from './middleware/error-handler.js';
 import { initializeAdminUser, authenticate, requireAuth, requireAuthWeb } from './middleware/auth.js';
 import healthRouter from './routes/health.js';
+import { timeStamp } from 'console';
 
 // Load and validate environment variables
 dotenv.config();
@@ -42,6 +43,261 @@ const forceHttpsRedirect = env.FORCE_HTTPS_REDIRECT;
 const sslKeyPath = env.SSL_KEY_PATH;
 const sslCertPath = env.SSL_CERT_PATH;
 const sslCaPath = env.SSL_CA_PATH;
+
+// Additional models for AdminJS resources
+
+const ImageMetadata = sequelize.define('ImageMetadata', {
+  url: {
+    type: DataTypes.TEXT,
+    primaryKey: true,
+    allowNull: false,
+    field: 'url'
+  },
+  url_image: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    field: 'url_image'
+  },
+  ai_overview: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    field: 'ai_overview'
+  },
+  snippet_description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    field: 'snippet_description'
+  },
+  title: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    field: 'title'
+  },
+  favicon: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    field: 'favicon'
+  },
+  source: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    field: 'source'
+  },
+  web_source: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    field: 'web_source'
+  }
+}, {
+  tableName: 'image_metadata',
+  timestamps: false,
+  underscored: true
+});
+
+const ImageUrls = sequelize.define('ImageUrls', {
+  image_url: {
+    type: DataTypes.TEXT,
+    primaryKey: true,
+    allowNull: false,
+    field: 'image_url',
+  },
+  response_id: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    field: 'response_id',
+    references: {
+      model: 'search_response',
+      key: 'response_id',
+    },
+    onDelete: 'CASCADE',
+  },
+  is_citation: {
+    type: DataTypes.BOOLEAN,
+    allowNull: true,
+    field: 'is_citation',
+    defaultValue: false,
+  },
+  seq_no: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    field: 'seq_no',
+  },
+}, {
+  tableName: 'image_urls',
+  timestamps: false,
+  underscored: true,
+});
+
+const query_results = sequelize.define('query_results', {
+  idx: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    allowNull: false,
+    autoIncrement: true,
+    field: 'idx'
+  },
+  query: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    field: 'query'
+  },
+  searchtype: {
+    type: DataTypes.STRING(512),
+    allowNull: true,
+    field: 'searchtype'
+  },
+  location: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    defaultValue: 'US',
+    field: 'location'
+  },
+  results: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    field: 'results'
+  },
+  timestamp: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    defaultValue: DataTypes.NOW,
+    field: 'timestamp'
+  }
+}, {
+  tableName: 'query_results',
+  timestamps: false,
+  underscored: true
+});
+
+const screenshots = sequelize.define('screenshots', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    allowNull: false,
+    autoIncrement: true,
+    field: 'id'
+  },
+  url: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+    unique: true,
+    field: 'url'
+  },
+  output_path: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    field: 'output_path'
+  },
+  slices: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    field: 'slices'
+  },
+  timestamp_column: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    defaultValue: DataTypes.NOW,
+    field: 'timestamp_column'
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    defaultValue: DataTypes.NOW,
+    field: 'created_at'
+  },
+  updated_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    defaultValue: DataTypes.NOW,
+    field: 'updated_at'
+  }
+}, {
+  tableName: 'screenshots',
+  timestamps: false,
+  underscored: true
+  // Indexes already exist in DB (screenshots_url_key, idx_screenshots_*).
+  // Omit indexes here so sync() does not try to recreate them.
+});
+
+
+const Searches = sequelize.define('Searches', {
+  search_id: { type: DataTypes.UUID, primaryKey: true, allowNull: false, field: 'search_id' },
+  user_id: { type: DataTypes.UUID, allowNull: false, field: 'user_id' },
+  system_prompt_id: { type: DataTypes.UUID, allowNull: true, field: 'system_prompt_id' },
+  keywords: { type: DataTypes.JSONB, allowNull: false, field: 'keywords' },
+  created_at: { type: DataTypes.DATE, allowNull: true, field: 'created_at' }
+}, { tableName: 'searches', timestamps: false, underscored: true });
+
+
+const SearchResponse = sequelize.define('SearchResponse', {
+  ai_summary: { type: DataTypes.TEXT, primaryKey: true, allowNull: true, field: 'ai_summary' }
+}, { tableName: 'search_response', timestamps: false, underscored: true });
+
+const SystemPrompt = sequelize.define('SystemPrompt', {
+  id: { type: DataTypes.UUID, primaryKey: true, allowNull: false, field: 'id' },
+  search_type: { type: DataTypes.STRING(50), allowNull: true, field: 'search_type' },
+  prompt_text: { type: DataTypes.TEXT, allowNull: false, field: 'prompt_text' },
+  platform: { type: DataTypes.STRING(100), allowNull: false, field: 'platform' },
+  created_at: { type: DataTypes.DATE, allowNull: true, field: 'created_at' },
+  version: { type: DataTypes.STRING(10), allowNull: true, field: 'version' },
+  is_active: { type: DataTypes.BOOLEAN, allowNull: true, field: 'is_active' }
+}, { tableName: 'system_prompt', timestamps: false, underscored: true });
+
+const TrendsNow = sequelize.define('TrendsNow', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, field: 'id' },
+  trends_data: { type: DataTypes.JSONB, allowNull: false, field: 'trends_data' },
+  location: { type: DataTypes.STRING(255), allowNull: false, field: 'location' },
+  timestamp: { type: DataTypes.DATE, allowNull: true, defaultValue: DataTypes.NOW, field: 'timestamp' }
+}, { tableName: 'trends_now', timestamps: false, underscored: true });
+
+const Users = sequelize.define('Users', {
+  id: { type: DataTypes.UUID, primaryKey: true, allowNull: false, field: 'id' },
+  email: { type: DataTypes.STRING(100), allowNull: true, field: 'email' },
+  device_id: { type: DataTypes.UUID, allowNull: true, field: 'device_id' },
+  platform_name: { type: DataTypes.STRING(40), allowNull: false, field: 'platform_name' },
+  created_at: { type: DataTypes.DATE, allowNull: true, field: 'created_at' }
+}, { tableName: 'users', timestamps: false, underscored: true });
+
+const VideoMetadata = sequelize.define('VideoMetadata', {
+  video_id: { type: DataTypes.UUID, primaryKey: true, allowNull: true, field: 'video_id' },
+  video_url: { type: DataTypes.TEXT, allowNull: true, field: 'video_url' },
+  title: { type: DataTypes.TEXT, allowNull: true, field: 'title' },
+  thumbnail: { type: DataTypes.TEXT, allowNull: true, field: 'thumbnail' },
+  publish_date: { type: DataTypes.DATEONLY, allowNull: true, field: 'publish_date' },
+  likes: { type: DataTypes.BIGINT, allowNull: true, field: 'likes' },
+  views: { type: DataTypes.BIGINT, allowNull: true, field: 'views' },
+  description: { type: DataTypes.TEXT, allowNull: true, field: 'description' }
+}, { tableName: 'video_metadata', timestamps: false, underscored: true });
+
+const VideoUrls = sequelize.define('VideoUrls', {
+  video_id: { type: DataTypes.UUID, primaryKey: true, allowNull: false, field: 'video_id' },
+  response_id: { type: DataTypes.UUID, primaryKey: true, allowNull: false, field: 'response_id' },
+  is_citation: { type: DataTypes.BOOLEAN, allowNull: true, field: 'is_citation' },
+  seq_no: { type: DataTypes.INTEGER, allowNull: true, field: 'seq_no' }
+}, { tableName: 'video_urls', timestamps: false, underscored: true });
+
+const WebMetadata = sequelize.define('WebMetadata', {
+  url: { type: DataTypes.TEXT, primaryKey: true, allowNull: false, field: 'url' },
+  ai_overview: { type: DataTypes.TEXT, allowNull: true, field: 'ai_overview' },
+  snippet_description: { type: DataTypes.TEXT, allowNull: true, field: 'snippet_description' },
+  title: { type: DataTypes.TEXT, allowNull: true, field: 'title' },
+  favicon: { type: DataTypes.TEXT, allowNull: true, field: 'favicon' },
+  source: { type: DataTypes.TEXT, allowNull: true, field: 'source' },
+  web_source: { type: DataTypes.TEXT, allowNull: true, field: 'web_source' }
+}, { tableName: 'web_metadata', timestamps: false, underscored: true });
+
+const WebUrls = sequelize.define('WebUrls', {
+  web_url: { type: DataTypes.TEXT, primaryKey: true, allowNull: false, field: 'web_url' },
+  response_id: { type: DataTypes.UUID, primaryKey: true, allowNull: false, field: 'response_id' },
+  is_citation: { type: DataTypes.BOOLEAN, allowNull: true, field: 'is_citation' },
+  seq_no: { type: DataTypes.INTEGER, allowNull: true, field: 'seq_no' }
+}, { tableName: 'web_urls', timestamps: false, underscored: true });
+
+const SessionTable = sequelize.define('SessionTable', {
+  sid: { type: DataTypes.STRING, primaryKey: true, allowNull: false, field: 'sid' },
+  sess: { type: DataTypes.JSON, allowNull: false, field: 'sess' },
+  expire: { type: DataTypes.DATE, allowNull: false, field: 'expire' }
+}, { tableName: 'session', timestamps: false, underscored: true });
 
 // Register Sequelize adapter for AdminJS
 AdminJS.registerAdapter({
@@ -859,6 +1115,20 @@ const start = async () => {
           },
         },
       },
+      { resource: ImageMetadata, options: { navigation: { name: 'Image Metadata', icon: 'Image' } } },
+      { resource: ImageUrls, options: { navigation: { name: 'Image URLs', icon: 'Link' } } },
+      { resource: query_results, options: { navigation: { name: 'Query Results', icon: 'Query' } } },
+      { resource: screenshots, options: { navigation: { name: 'Screenshots', icon: 'Screenshot' } } },
+      { resource: Searches, options: { navigation: { name: 'Searches', icon: 'Search' } } },
+      { resource: SearchResponse, options: { navigation: { name: 'Search Response', icon: 'Document' } } },
+      { resource: SystemPrompt, options: { navigation: { name: 'System Prompt', icon: 'Terminal' } } },
+      { resource: TrendsNow, options: { navigation: { name: 'Trends Now', icon: 'Activity' } } },
+      { resource: Users, options: { navigation: { name: 'Users', icon: 'User' } } },
+      { resource: VideoMetadata, options: { navigation: { name: 'Video Metadata', icon: 'Video' } } },
+      { resource: VideoUrls, options: { navigation: { name: 'Video URLs', icon: 'Link' } } },
+      { resource: WebMetadata, options: { navigation: { name: 'Web Metadata', icon: 'Globe' } } },
+      { resource: WebUrls, options: { navigation: { name: 'Web URLs', icon: 'Link2' } } },
+      { resource: SessionTable, options: { navigation: { name: 'Sessions', icon: 'Lock' } } },
     ],
     rootPath: '/admin',
     branding: {
